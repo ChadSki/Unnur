@@ -76,43 +76,29 @@ namespace Unnur
         }
         public bool IsOnGround(Collision collision, Scene currentScene)
         {
-            // var center = new Vector2(coordinates.X + Aabb.GetWidth() / 2, coordinates.Y + Aabb.GetHeight() / 2);
-            var bottomLeft = new Vector2(Aabb.GetLeft(), Aabb.GetBottom());
-            var bottomRight = new Vector2(Aabb.GetRight(), Aabb.GetBottom());
-            List<Entity> localCollideables = new List<Entity>();
-            /// we add 32 because that's the width of one tile
-            for (var checkedTile = bottomLeft; ; checkedTile.X += 32)
-            {
-                // skip back to the closest tile if we're past the edge of the test line
-                checkedTile.X = Math.Min(checkedTile.X, bottomRight.X);
-                Point tileIndex = new Point((int)(checkedTile.X / 32), (int)(bottomLeft.Y / 32));
-                foreach (Entity localEntity in currentScene.GetTile(tileIndex).GetLocalEntities())
-                {
-                    if (localEntity.IsCollideable())
-                    {
-                        localCollideables.Add(localEntity);
-                    }
-                }
+            var leftPixel = (int)Aabb.GetLeft();
+            var rightPixel = (int)Aabb.GetRight();
+            var yPixel = (int)Aabb.GetBottom();
 
-                if (checkedTile.X >= bottomRight.X)
-                {
-                    break;
-                }
-            }
-            for (var x = bottomLeft.X; x <= bottomRight.X; x++)
-            {
-                foreach (Entity collideableEntity in localCollideables)
-                {
-                    if (collision.PointCollisionCheck(new Vector2(x, bottomLeft.Y + 1), collideableEntity))
-                    {
-                        return true;
-                    }
-                }
-            }
-            return false;
+            var tileWidth = 32;
+            var tileY = yPixel / tileWidth;
 
+            var localCollides = Enumerable
+                .Range((leftPixel / tileWidth), rightPixel / tileWidth) // tile X indices
+                .Select(tileX => new Point(tileX, tileY))               // tile Point coordinates
+                .Select(tileIndex => currentScene.GetTile(tileIndex))   // tiles
+                .SelectMany(tile => tile.GetLocalEntities())            // entities in those tiles
+                .Where(entity => entity.IsCollideable());               // collidable entities
 
+            var bottomEdgePixels = Enumerable.Range(leftPixel, rightPixel - leftPixel);
 
+            // do any of the pixels on our bottom edge collide with the nearby entities?
+            return bottomEdgePixels.Any(x =>
+                localCollides.Any(
+                    collideableEntity =>
+                        collision.PointCollisionCheck(
+                            new Vector2(x, yPixel + 1),
+                            collideableEntity)));
         }
     }
 }
